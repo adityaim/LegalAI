@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile.ocr
+    image: legal-ai-ocr:latest
+    container_name: legal-ai-ocr
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: "8001"
+      LOG_LEVEL: "info"
+      OCR_ENGINE: "paddle"
+    volumes:
+      # Mount local source for development hot-reload
+      # Remove these in production
+      - ./modules:/app/modules:ro
+      - ./api:/app/api:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/v1/ocr/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G   # PaddleOCR models require ~1.5 GB; set higher for GPU

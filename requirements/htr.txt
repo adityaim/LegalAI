@@ -1,0 +1,36 @@
+# HTR runtime dependencies
+# Install with: pip install -r requirements/htr.txt
+
+# ── Core HTR engine ─────────────────────────────────────────────────────────
+transformers>=4.40.0          # TrOCR, VisionEncoderDecoderModel, TrOCRProcessor
+torch>=2.2.0                  # PyTorch (CPU build default; use torch+cu121 for GPU)
+# torchvision>=0.17.0         # may be needed for some ViT variants
+
+# ── Image processing (shared with Module 1) ─────────────────────────────────
+Pillow>=10.0.0
+opencv-python-headless>=4.9.0
+numpy>=1.24.0
+
+# ── PDF rasterisation (shared with Module 1) ────────────────────────────────
+pymupdf>=1.23.0
+
+# ── Tesseract (optional – Hindi/Devanagari) ──────────────────────────────────
+# pytesseract>=0.3.10
+# Also requires system tesseract-ocr + tesseract-ocr-hin package
+
+# ── Spell correction (optional) ─────────────────────────────────────────────
+symspellpy>=6.7.7
+
+# ── Module 1 preprocessor is reused directly ────────────────────────────────
+# (no extra deps — already in requirements/ocr.txt)
+
+# ── API layer ────────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# ── Language detection (shared with Module 1) ────────────────────────────────
+langdetect>=1.0.9
+
+# ── Optional: YOLOv8 segmenter ───────────────────────────────────────────────
+# ultralytics>=8.2.0

@@ -1,0 +1,11 @@
+# OCR module runtime dependencies (pip-installable, CPU-only)
+# Install with: pip install -r requirements/ocr.txt
+
+pymupdf>=1.24.0
+paddlepaddle>=2.6.0
+paddleocr>=2.7.3
+opencv-python-headless>=4.9.0
+Pillow>=10.3.0
+numpy>=1.26.0
+langdetect>=1.0.9
+pydantic>=2.7.0

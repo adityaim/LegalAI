@@ -1,0 +1,94 @@
+# Legal AI OCR Module — Dockerfile
+# ════════════════════════════════════════════════════════════════════════════
+# Multi-stage build for a self-contained OCR service.
+#
+# Stages:
+#   builder  — installs Python deps into /opt/venv
+#   runtime  — copies venv + app code; adds system OCR libraries
+#
+# Usage:
+#   docker build -f Dockerfile.ocr -t legal-ai-ocr .
+#   docker run --rm -p 8001:8001 legal-ai-ocr
+#
+# Environment variables:
+#   PORT         — HTTP port (default: 8001)
+#   LOG_LEVEL    — uvicorn log level (default: info)
+#   OCR_ENGINE   — "paddle" | "tesseract" (default: paddle)
+# ════════════════════════════════════════════════════════════════════════════
+
+# ─── Stage 1: builder ────────────────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+# System dependencies required at build time
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create isolated virtualenv
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy and install Python dependencies
+COPY requirements/ocr.txt /tmp/ocr.txt
+COPY requirements/dev.txt /tmp/dev.txt
+
+# Install production OCR deps only (no dev tools)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/ocr.txt && \
+    pip install --no-cache-dir fastapi>=0.111.0 uvicorn[standard]>=0.29.0 python-multipart>=0.0.9
+
+
+# ─── Stage 2: runtime ────────────────────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+LABEL org.opencontainers.image.title="Legal AI — OCR Module"
+LABEL org.opencontainers.image.description="Module 1: OCR Document Reader"
+LABEL org.opencontainers.image.version="0.1.0"
+
+# System libs needed at runtime for OpenCV and PaddleOCR
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # OpenCV runtime dependencies
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    # Tesseract (optional — comment out if not using Tesseract engine)
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-hin \
+    # PDF utilities
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the virtualenv from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash appuser
+WORKDIR /app
+RUN chown appuser:appuser /app
+
+# Copy application code
+COPY --chown=appuser:appuser modules/ ./modules/
+COPY --chown=appuser:appuser api/     ./api/
+
+USER appuser
+
+# Pre-download PaddleOCR models at build time to avoid cold-start delays
+# Comment this out if you want a smaller image and are OK with first-request latency
+RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(use_angle_cls=True, lang='en', show_log=False)" || true
+
+EXPOSE 8001
+
+ENV PORT=8001
+ENV LOG_LEVEL=info
+ENV OCR_ENGINE=paddle
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/api/v1/ocr/health')" || exit 1
+
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT} --log-level ${LOG_LEVEL}"]
